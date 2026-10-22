@@ -179,7 +179,7 @@ class Engine:
 class Strip(QGroupBox):
  def __init__(self,eng,i,win):
   super().__init__(); self.e=eng; self.i=i; self.w=win; self.t=eng.tracks[i]
-  self.setObjectName("channelStrip"); self.setMinimumWidth(150); self.setMaximumWidth(230)
+  self.setObjectName("channelStrip"); self.setMinimumWidth(120); self.setMaximumWidth(230)
   self.setTitle(""); v=QVBoxLayout(self); v.setContentsMargins(8,9,8,8); v.setSpacing(6)
   self.chlabel=QLabel(f"CH {i+1:02d}"); self.chlabel.setObjectName("channelNumber"); self.chlabel.setAlignment(Qt.AlignmentFlag.AlignCenter); v.addWidget(self.chlabel)
   self.name=QLineEdit(self.t.name); self.name.setObjectName("channelName"); self.name.setPlaceholderText("ตั้งชื่อช่อง..."); self.name.setAlignment(Qt.AlignmentFlag.AlignCenter); self.name.editingFinished.connect(self.rename); v.addWidget(self.name)
@@ -187,7 +187,7 @@ class Strip(QGroupBox):
   b=QPushButton("＋ LOAD AUDIO"); b.clicked.connect(self.load); v.addWidget(b)
   frow=QHBoxLayout(); frow.setSpacing(6)
   self.db_label=QLabel("−1.0 dB"); self.db_label.setObjectName("faderValue"); self.db_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-  self.fader=QSlider(Qt.Orientation.Vertical); self.fader.setRange(-600,100); self.fader.setValue(-19); self.fader.setMinimumHeight(175); self.fader.setObjectName("channelFader"); self.fader.valueChanged.connect(self.set_gain)
+  self.fader=QSlider(Qt.Orientation.Vertical); self.fader.setRange(-600,100); self.fader.setValue(-19); self.fader.setMinimumHeight(300); self.fader.setObjectName("channelFader"); self.fader.valueChanged.connect(self.set_gain)
   frow.addStretch(1); frow.addWidget(self.fader); frow.addWidget(self.db_label); frow.addStretch(1); v.addLayout(frow,1)
   panrow=QHBoxLayout(); panrow.addWidget(QLabel("L")); self.pan=QSlider(Qt.Orientation.Horizontal); self.pan.setRange(-100,100); self.pan.valueChanged.connect(lambda x:setattr(self.t,"pan",x/100)); panrow.addWidget(self.pan,1); panrow.addWidget(QLabel("R")); v.addLayout(panrow)
   row=QHBoxLayout(); self.mute=QPushButton("MUTE"); self.mute.setCheckable(True); self.mute.setObjectName("muteButton"); self.mute.toggled.connect(lambda x:setattr(self.t,"mute",x)); self.solo=QPushButton("SOLO"); self.solo.setCheckable(True); self.solo.setObjectName("soloButton"); self.solo.toggled.connect(lambda x:setattr(self.t,"solo",x)); row.addWidget(self.mute); row.addWidget(self.solo); v.addLayout(row)
@@ -266,12 +266,17 @@ class Main(QMainWindow):
   self.bpm=QSpinBox(); self.bpm.setRange(40,240); self.bpm.setValue(120); self.bpm.valueChanged.connect(lambda x:setattr(self.e,"bpm",x)); top.addWidget(QLabel("BPM")); top.addWidget(self.bpm)
   self.loop=QCheckBox("Loop"); self.loop.toggled.connect(lambda x:setattr(self.e,"loop",x)); top.addWidget(self.loop)
   v.addLayout(top)
-  self.tabs=QComboBox(); self.tabs.addItems(["Channels 1–32","Bus Masters","FX Rack","DCA / Mute Groups"]); self.tabs.currentIndexChanged.connect(self.switch_view); v.addWidget(self.tabs)
+  self.tabs=QComboBox(); self.tabs.addItems(["HOME • CHANNELS","BUS MASTERS","FX RACK","DCA / MUTE GROUPS"]); self.tabs.currentIndexChanged.connect(self.switch_view); v.addWidget(self.tabs)
+  self.bankbar=QHBoxLayout(); self.bankbar.setSpacing(6); self.bank_buttons=[]
+  for bi,label in enumerate(("CH 1–8","CH 9–16","CH 17–24","CH 25–32")):
+   bb=QPushButton(label); bb.setObjectName("bankButton"); bb.setCheckable(True); bb.setChecked(bi==0); bb.clicked.connect(lambda checked=False,j=bi:self.select_bank(j)); self.bankbar.addWidget(bb); self.bank_buttons.append(bb)
+  self.bankbar.addStretch(1); v.addLayout(self.bankbar)
   self.scroll=QScrollArea(); self.scroll.setWidgetResizable(True); v.addWidget(self.scroll,1)
-  self.channel_widget=QWidget(); grid=QGridLayout(self.channel_widget); grid.setSpacing(10); grid.setContentsMargins(10,10,10,10); self.strips=[]
+  self.channel_widget=QWidget(); grid=QGridLayout(self.channel_widget); grid.setSpacing(7); grid.setContentsMargins(5,5,5,5); self.strips=[]
   for i in range(32):
-   s=Strip(self.e,i,self); self.strips.append(s); grid.addWidget(s,i//8,i%8)
-  self.scroll.setWidget(self.channel_widget)
+   s=Strip(self.e,i,self); self.strips.append(s); grid.addWidget(s,0,i)
+   if i>=8: s.hide()
+  self.current_bank=0; self.scroll.setWidget(self.channel_widget)
   self.bus_widget=self.make_buses(); self.fx_widget=self.make_fx(); self.group_widget=self.make_groups()
   self.setCentralWidget(root)
   self.setStyleSheet("""
@@ -279,7 +284,7 @@ class Main(QMainWindow):
   QStatusBar { background: #111317; color: #aeb5c0; border-top: 1px solid #343941; }
   QLabel#brandLogo { color: #ffffff; background: #111317; border: 1px solid #4d5662; border-radius: 7px; font-size: 25pt; font-weight: 900; padding: 1px 13px; }
   QLabel#brandSub { color: #9ca6b4; font-size: 9pt; font-weight: 700; padding-left: 8px; }
-  QLabel#channelNumber { background: #303640; color: #a8d8ff; border-radius: 4px; padding: 5px; font-weight: 900; letter-spacing: 1px; }
+  QLabel#channelNumber { background: #303640; color: #00d8f5; border-radius: 4px; padding: 5px; font-weight: 900; letter-spacing: 1px; }
   QLabel#trackStatus { color: #8e98a6; background: #20242a; border: 1px solid #343a43; border-radius: 4px; padding: 5px; font-size: 8pt; }
   QLabel#trackLoaded { color: #a8f0a0; background: #1c3025; border: 1px solid #39724b; border-radius: 4px; padding: 5px; font-size: 8pt; }
   QLabel#faderValue { color: #f0c66b; font-weight: 800; min-width: 42px; }
@@ -289,8 +294,10 @@ class Main(QMainWindow):
   QPushButton:hover { border: 1px solid #7fc7ff; background: #394553; }
   QPushButton:pressed { background: #171a1f; }
   QPushButton#navButton { min-width: 68px; background: #262b32; border: 1px solid #3b424c; border-radius: 4px; color: #c8d0db; font-size: 9pt; font-weight: 800; }
-  QPushButton#navButton:hover { background: #36414c; color: white; border-bottom: 3px solid #5eb9ff; }
-  QPushButton#detailButton { background: #21445a; border: 1px solid #34759a; color: #dff4ff; }
+  QPushButton#navButton:hover { background: #36414c; color: white; border-bottom: 3px solid #00d8f5; }
+  QPushButton#bankButton { min-width: 105px; background: #20252c; border: 1px solid #38424e; color: #aeb8c4; padding: 8px 15px; }
+  QPushButton#bankButton:checked { background: #00c7e8; border: 1px solid #4beaff; color: #071218; }
+  QPushButton#detailButton { background: #073f50; border: 1px solid #00c7e8; color: #e8fbff; }
   QPushButton#muteButton:checked { background: #9c3038; border-color: #e95d67; color: white; }
   QPushButton#soloButton:checked { background: #b58a25; border-color: #e5c15b; color: #171717; }
   QGroupBox { background: #242930; border: 1px solid #414955; border-radius: 7px; margin-top: 12px; padding: 8px 5px 5px 5px; font-weight: 700; color: #e2e8f0; }
@@ -307,7 +314,7 @@ class Main(QMainWindow):
   QScrollArea { border: 1px solid #363e49; border-radius: 7px; background: #1b1d21; }
   QTabWidget::pane { border: 1px solid #424b57; border-radius: 6px; top: -1px; background: #20242a; }
   QTabBar::tab { background: #2b3139; color: #b8c2cf; padding: 10px 24px; margin-right: 4px; border-top-left-radius: 5px; border-top-right-radius: 5px; font-weight: 800; }
-  QTabBar::tab:selected { background: #245574; color: #ffffff; border-bottom: 3px solid #63c1ff; }
+  QTabBar::tab:selected { background: #075064; color: #ffffff; border-bottom: 3px solid #00d8f5; }
   """)
   self.timer=QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(250)
   self.statusBar().showMessage("READY  •  Load multitrack files, mix, and save a project/scene.")
@@ -343,9 +350,19 @@ class Main(QMainWindow):
  def set_mute_group(self,i,x): self.e.mute_groups[i]=x
  def open_channel_detail(self,i):
   self.strips[i].refresh(); self.scroll.takeWidget(); self.scroll.setWidget(self.strips[i].detail_widget); self.strips[i].detail_tabs.setCurrentIndex(0); self.statusBar().showMessage(f"CHANNEL {i+1:02d}  •  Gate / Compressor / EQ / Sends")
+ def select_bank(self,bank):
+  self.current_bank=bank
+  for i,strip in enumerate(self.strips): strip.setVisible(bank*8 <= i < bank*8+8)
+  for i,b in enumerate(self.bank_buttons): b.setChecked(i==bank)
+  self.statusBar().showMessage(f"CHANNEL BANK {bank+1}  •  CH {bank*8+1}–{bank*8+8}")
  def switch_view(self,i):
+  self.bankbar_widget_visibility(i==0)
   self.scroll.takeWidget(); self.scroll.setWidget([self.channel_widget,self.bus_widget,self.fx_widget,self.group_widget][i])
-  if i==0: self.statusBar().showMessage("CHANNEL OVERVIEW  •  Select OPEN CHANNEL DETAIL to edit Gate, Comp, EQ and Sends")
+  if i==0:
+   self.select_bank(self.current_bank)
+   self.statusBar().showMessage("CHANNEL OVERVIEW  •  Select OPEN CHANNEL DETAIL to edit Gate, Comp, EQ and Sends")
+ def bankbar_widget_visibility(self,visible):
+  for b in self.bank_buttons: b.setVisible(visible)
  def play(self):
   try: self.e.start(); self.statusBar().showMessage("Playback running")
   except Exception as ex: QMessageBox.critical(self,"Audio device error",str(ex))
