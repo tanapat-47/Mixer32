@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
  QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QPushButton,
  QLabel,QSlider,QFileDialog,QMessageBox,QScrollArea,QGroupBox,QDoubleSpinBox,
- QCheckBox,QLineEdit,QComboBox,QSpinBox,QInputDialog
+ QCheckBox,QLineEdit,QComboBox,QSpinBox,QInputDialog,QTabWidget,QFormLayout,QFrame
 )
 
 SR=48000
@@ -179,52 +179,56 @@ class Engine:
 class Strip(QGroupBox):
  def __init__(self,eng,i,win):
   super().__init__(); self.e=eng; self.i=i; self.w=win; self.t=eng.tracks[i]
-  self.setMinimumWidth(215); self.setTitle(self.t.name); v=QVBoxLayout(self)
-  self.name=QLineEdit(self.t.name); self.name.editingFinished.connect(self.rename); v.addWidget(self.name)
-  self.file=QLabel("No audio loaded"); self.file.setWordWrap(True); v.addWidget(self.file)
-  b=QPushButton("Load Track"); b.clicked.connect(self.load); v.addWidget(b)
-  self.fader=QSlider(Qt.Orientation.Vertical); self.fader.setRange(-600,100); self.fader.setValue(-19); self.fader.setMinimumHeight(100); self.fader.valueChanged.connect(self.set_gain)
-  v.addWidget(QLabel("Fader (dB)")); v.addWidget(self.fader,alignment=Qt.AlignmentFlag.AlignHCenter)
-  self.pan=QSlider(Qt.Orientation.Horizontal); self.pan.setRange(-100,100); self.pan.valueChanged.connect(lambda x:setattr(self.t,"pan",x/100)); v.addWidget(QLabel("Pan")); v.addWidget(self.pan)
-  row=QHBoxLayout()
-  self.mute=QCheckBox("MUTE"); self.mute.toggled.connect(lambda x:setattr(self.t,"mute",x))
-  self.solo=QCheckBox("SOLO"); self.solo.toggled.connect(lambda x:setattr(self.t,"solo",x))
-  row.addWidget(self.mute); row.addWidget(self.solo); v.addLayout(row)
+  self.setObjectName("channelStrip"); self.setMinimumWidth(150); self.setMaximumWidth(230)
+  self.setTitle(""); v=QVBoxLayout(self); v.setContentsMargins(8,9,8,8); v.setSpacing(6)
+  self.chlabel=QLabel(f"CH {i+1:02d}"); self.chlabel.setObjectName("channelNumber"); self.chlabel.setAlignment(Qt.AlignmentFlag.AlignCenter); v.addWidget(self.chlabel)
+  self.name=QLineEdit(self.t.name); self.name.setObjectName("channelName"); self.name.setPlaceholderText("ตั้งชื่อช่อง..."); self.name.setAlignment(Qt.AlignmentFlag.AlignCenter); self.name.editingFinished.connect(self.rename); v.addWidget(self.name)
+  self.file=QLabel("NO AUDIO"); self.file.setObjectName("trackStatus"); self.file.setAlignment(Qt.AlignmentFlag.AlignCenter); self.file.setWordWrap(True); self.file.setMinimumHeight(26); v.addWidget(self.file)
+  b=QPushButton("＋ LOAD AUDIO"); b.clicked.connect(self.load); v.addWidget(b)
+  frow=QHBoxLayout(); frow.setSpacing(6)
+  self.db_label=QLabel("−1.0 dB"); self.db_label.setObjectName("faderValue"); self.db_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+  self.fader=QSlider(Qt.Orientation.Vertical); self.fader.setRange(-600,100); self.fader.setValue(-19); self.fader.setMinimumHeight(175); self.fader.setObjectName("channelFader"); self.fader.valueChanged.connect(self.set_gain)
+  frow.addStretch(1); frow.addWidget(self.fader); frow.addWidget(self.db_label); frow.addStretch(1); v.addLayout(frow,1)
+  panrow=QHBoxLayout(); panrow.addWidget(QLabel("L")); self.pan=QSlider(Qt.Orientation.Horizontal); self.pan.setRange(-100,100); self.pan.valueChanged.connect(lambda x:setattr(self.t,"pan",x/100)); panrow.addWidget(self.pan,1); panrow.addWidget(QLabel("R")); v.addLayout(panrow)
+  row=QHBoxLayout(); self.mute=QPushButton("MUTE"); self.mute.setCheckable(True); self.mute.setObjectName("muteButton"); self.mute.toggled.connect(lambda x:setattr(self.t,"mute",x)); self.solo=QPushButton("SOLO"); self.solo.setCheckable(True); self.solo.setObjectName("soloButton"); self.solo.toggled.connect(lambda x:setattr(self.t,"solo",x)); row.addWidget(self.mute); row.addWidget(self.solo); v.addLayout(row)
   self.phase=QCheckBox("Ø Polarity"); self.phase.toggled.connect(lambda x:setattr(self.t,"phase",x)); v.addWidget(self.phase)
-  self.hpf=QSpinBox(); self.hpf.setRange(20,1000); self.hpf.setValue(35); self.hpf.setSuffix(" Hz HPF"); self.hpf.valueChanged.connect(lambda x:setattr(self.t,"hpf",float(x))); v.addWidget(self.hpf)
-  self.gate=QCheckBox("Gate"); self.gate.toggled.connect(lambda x:setattr(self.t,"gate_on",x)); v.addWidget(self.gate)
-  self.gate_thr=QDoubleSpinBox(); self.gate_thr.setRange(-90,0); self.gate_thr.setValue(-55); self.gate_thr.setSuffix(" dB Gate"); self.gate_thr.valueChanged.connect(lambda x:setattr(self.t,"gate_thr",x)); v.addWidget(self.gate_thr)
-  self.comp=QCheckBox("Compressor"); self.comp.toggled.connect(lambda x:setattr(self.t,"comp_on",x)); v.addWidget(self.comp)
-  self.comp_thr=QDoubleSpinBox(); self.comp_thr.setRange(-60,0); self.comp_thr.setValue(-18); self.comp_thr.setSuffix(" dB Thresh"); self.comp_thr.valueChanged.connect(lambda x:setattr(self.t,"comp_thr",x)); v.addWidget(self.comp_thr)
-  self.comp_ratio=QDoubleSpinBox(); self.comp_ratio.setRange(1,20); self.comp_ratio.setValue(3); self.comp_ratio.setSuffix(":1 Ratio"); self.comp_ratio.valueChanged.connect(lambda x:setattr(self.t,"comp_ratio",x)); v.addWidget(self.comp_ratio)
-  self.eqsp=[]
-  for label,default in zip(("Low EQ dB","Low-Mid EQ dB","High-Mid EQ dB","High EQ dB"),self.t.eq):
-   s=QDoubleSpinBox(); s.setRange(-15,15); s.setSingleStep(.5); s.setValue(default); s.setSuffix(" dB"); s.valueChanged.connect(lambda x,ix=len(self.eqsp):self.set_eq(ix,x)); self.eqsp.append(s); v.addWidget(QLabel(label)); v.addWidget(s)
-  self.eqfreq=[]
-  for label,default in zip(("Low Freq Hz","Low-Mid Freq Hz","High-Mid Freq Hz","High Freq Hz"),self.t.eq_freq):
-   s=QDoubleSpinBox(); s.setRange(20,20000); s.setValue(default); s.setSuffix(" Hz"); s.valueChanged.connect(lambda x,ix=len(self.eqfreq):self.set_eqfreq(ix,x)); self.eqfreq.append(s); v.addWidget(s)
-  self.sendsp=[]
+  self.detail_btn=QPushButton("OPEN CHANNEL DETAIL  ›"); self.detail_btn.setObjectName("detailButton"); self.detail_btn.clicked.connect(lambda:self.w.open_channel_detail(self.i)); v.addWidget(self.detail_btn)
+  # Detailed processing page: only shown after opening a channel.
+  self.detail_widget=QWidget(); dv=QVBoxLayout(self.detail_widget); dv.setContentsMargins(12,12,12,12); dv.setSpacing(10)
+  head=QHBoxLayout(); back=QPushButton("‹  BACK TO CHANNELS"); back.clicked.connect(lambda:self.w.switch_view(0)); head.addWidget(back)
+  title=QLabel(f"CHANNEL {i+1:02d}  /  {self.t.name}"); title.setObjectName("detailTitle"); head.addWidget(title,1); dv.addLayout(head); self.detail_title=title
+  self.detail_tabs=QTabWidget(); self.detail_tabs.setObjectName("detailTabs"); dv.addWidget(self.detail_tabs,1)
+  gatepage=QWidget(); gl=QVBoxLayout(gatepage); gatebox=QGroupBox("HIGH-PASS FILTER"); gf=QFormLayout(gatebox)
+  self.hpf=QSpinBox(); self.hpf.setRange(20,1000); self.hpf.setValue(35); self.hpf.setSuffix(" Hz"); self.hpf.valueChanged.connect(lambda x:setattr(self.t,"hpf",float(x))); gf.addRow("Low cut / HPF",self.hpf); gl.addWidget(gatebox)
+  gatebox2=QGroupBox("NOISE GATE"); g2=QFormLayout(gatebox2); self.gate=QCheckBox("Enable Gate"); self.gate.toggled.connect(lambda x:setattr(self.t,"gate_on",x)); self.gate_thr=QDoubleSpinBox(); self.gate_thr.setRange(-90,0); self.gate_thr.setValue(-55); self.gate_thr.setSuffix(" dB"); self.gate_thr.valueChanged.connect(lambda x:setattr(self.t,"gate_thr",x)); self.gate_ratio=QDoubleSpinBox(); self.gate_ratio.setRange(1,20); self.gate_ratio.setValue(4); self.gate_ratio.valueChanged.connect(lambda x:setattr(self.t,"gate_ratio",x)); g2.addRow(self.gate); g2.addRow("Threshold",self.gate_thr); g2.addRow("Range / ratio",self.gate_ratio); gl.addWidget(gatebox2); gl.addStretch(1); self.detail_tabs.addTab(gatepage,"GATE / HPF")
+  compage=QWidget(); cl=QVBoxLayout(compage); cb=QGroupBox("DYNAMIC PROCESSOR / COMPRESSOR"); cf=QFormLayout(cb); self.comp=QCheckBox("Enable Compressor"); self.comp.toggled.connect(lambda x:setattr(self.t,"comp_on",x)); self.comp_thr=QDoubleSpinBox(); self.comp_thr.setRange(-60,0); self.comp_thr.setValue(-18); self.comp_thr.setSuffix(" dB"); self.comp_thr.valueChanged.connect(lambda x:setattr(self.t,"comp_thr",x)); self.comp_ratio=QDoubleSpinBox(); self.comp_ratio.setRange(1,20); self.comp_ratio.setValue(3); self.comp_ratio.setSuffix(":1"); self.comp_ratio.valueChanged.connect(lambda x:setattr(self.t,"comp_ratio",x)); self.comp_attack=QDoubleSpinBox(); self.comp_attack.setRange(.1,200); self.comp_attack.setValue(10); self.comp_attack.setSuffix(" ms"); self.comp_attack.valueChanged.connect(lambda x:setattr(self.t,"comp_attack",x)); self.comp_release=QDoubleSpinBox(); self.comp_release.setRange(5,2000); self.comp_release.setValue(100); self.comp_release.setSuffix(" ms"); self.comp_release.valueChanged.connect(lambda x:setattr(self.t,"comp_release",x)); cf.addRow(self.comp); cf.addRow("Threshold",self.comp_thr); cf.addRow("Ratio",self.comp_ratio); cf.addRow("Attack",self.comp_attack); cf.addRow("Release",self.comp_release); cl.addWidget(cb); cl.addStretch(1); self.detail_tabs.addTab(compage,"DYN / COMP")
+  eqpage=QWidget(); el=QVBoxLayout(eqpage); eqintro=QLabel("4-BAND PARAMETRIC EQ  •  Adjust gain and center frequency for each band"); eqintro.setObjectName("sectionHint"); el.addWidget(eqintro); eqgrid=QGridLayout(); self.eqsp=[]; self.eqfreq=[]
+  for j,(label,default) in enumerate(zip(("LOW","LOW MID","HIGH MID","HIGH"),self.t.eq)):
+   box=QGroupBox(label); bl=QFormLayout(box); gain=QDoubleSpinBox(); gain.setRange(-15,15); gain.setSingleStep(.5); gain.setValue(default); gain.setSuffix(" dB"); gain.valueChanged.connect(lambda x,ix=j:self.set_eq(ix,x)); freq=QDoubleSpinBox(); freq.setRange(20,20000); freq.setValue(self.t.eq_freq[j]); freq.setSuffix(" Hz"); freq.valueChanged.connect(lambda x,ix=j:self.set_eqfreq(ix,x)); q=QDoubleSpinBox(); q.setRange(.1,10); q.setSingleStep(.1); q.setValue(self.t.eq_q[j]); q.valueChanged.connect(lambda x,ix=j:self.set_eqq(ix,x)); self.eqsp.append(gain); self.eqfreq.append(freq); bl.addRow("Gain",gain); bl.addRow("Frequency",freq); bl.addRow("Q",q); eqgrid.addWidget(box,0,j)
+  el.addLayout(eqgrid); el.addStretch(1); self.detail_tabs.addTab(eqpage,"EQ")
+  sendpage=QWidget(); sl=QVBoxLayout(sendpage); sendintro=QLabel("BUS SENDS  •  Set the send level for this channel"); sendintro.setObjectName("sectionHint"); sl.addWidget(sendintro); self.sendsp=[]; sg=QGridLayout()
   for bi in range(8):
-   row=QHBoxLayout(); lab=QLabel(f"Bus {bi+1}"); s=QSlider(Qt.Orientation.Horizontal); s.setRange(0,100); s.valueChanged.connect(lambda x,j=bi:self.set_send(j,x)); self.sendsp.append(s); row.addWidget(lab); row.addWidget(s); v.addLayout(row)
-  row=QHBoxLayout()
-  self.dca=QComboBox(); self.dca.addItems(["No DCA"]+[f"DCA {x}" for x in range(1,9)]); self.dca.currentIndexChanged.connect(lambda x:setattr(self.t,"dca",max(0,x-1)))
-  self.mg=QComboBox(); self.mg.addItems(["No Mute Group"]+[f"Mute {x}" for x in range(1,9)]); self.mg.currentIndexChanged.connect(lambda x:setattr(self.t,"mute_group",x))
-  row.addWidget(self.dca); row.addWidget(self.mg); v.addLayout(row)
+   box=QGroupBox(f"BUS {bi+1:02d}"); bl=QVBoxLayout(box); value=QLabel("−∞ dB"); value.setAlignment(Qt.AlignmentFlag.AlignCenter); s=QSlider(Qt.Orientation.Vertical); s.setMinimumHeight(150); s.setRange(0,100); s.valueChanged.connect(lambda x,j=bi,lab=value:self.set_send(j,x,lab)); bl.addWidget(value); bl.addWidget(s,alignment=Qt.AlignmentFlag.AlignHCenter); self.sendsp.append(s); sg.addWidget(box,0,bi)
+  sl.addLayout(sg); route=QHBoxLayout(); self.dca=QComboBox(); self.dca.addItems(["No DCA"]+[f"DCA {x}" for x in range(1,9)]); self.dca.currentIndexChanged.connect(lambda x:setattr(self.t,"dca",max(0,x-1))); self.mg=QComboBox(); self.mg.addItems(["No Mute Group"]+[f"Mute Group {x}" for x in range(1,9)]); self.mg.currentIndexChanged.connect(lambda x:setattr(self.t,"mute_group",x)); route.addWidget(QLabel("DCA")); route.addWidget(self.dca); route.addWidget(QLabel("Mute Group")); route.addWidget(self.mg); route.addStretch(1); sl.addLayout(route); sl.addStretch(1); self.detail_tabs.addTab(sendpage,"SENDS / ROUTING")
  def rename(self):
-  self.t.name=self.name.text().strip() or f"CH {self.i+1:02d}"; self.setTitle(self.t.name)
- def set_gain(self,x): self.t.gain=10**(x/200); 
+  self.t.name=self.name.text().strip() or f"CH {self.i+1:02d}"; self.name.setText(self.t.name); self.detail_title.setText(f"CHANNEL {self.i+1:02d}  /  {self.t.name}")
+ def set_gain(self,x):
+  self.t.gain=10**(x/200); self.db_label.setText(f"{x/10:.1f} dB" if x>-600 else "−∞ dB")
  def set_eq(self,i,x): self.t.eq[i]=x; self.t.eq_filters={}
  def set_eqfreq(self,i,x): self.t.eq_freq[i]=x; self.t.eq_filters={}
- def set_send(self,i,x): self.t.sends[i]=x/100
+ def set_eqq(self,i,x): self.t.eq_q[i]=x; self.t.eq_filters={}
+ def set_send(self,i,x,label=None):
+  self.t.sends[i]=x/100
+  if label is not None: label.setText("−∞ dB" if x==0 else f"{20*math.log10(x/100):.1f} dB")
  def load(self):
   p,_=QFileDialog.getOpenFileName(self,"Load audio","","Audio (*.wav *.flac *.aiff *.aif *.ogg)")
   if p:
-   try: self.e.load(self.i,p); self.name.setText(self.t.name); self.setTitle(self.t.name); self.file.setText(os.path.basename(p))
+   try: self.e.load(self.i,p); self.name.setText(self.t.name); self.rename(); self.file.setText(os.path.basename(p)); self.file.setObjectName("trackLoaded")
    except Exception as ex: QMessageBox.critical(self,"Load error",str(ex))
  def refresh(self):
-  t=self.t; self.name.setText(t.name); self.setTitle(t.name); self.file.setText(os.path.basename(t.path) if t.path else "No audio loaded")
-  self.fader.setValue(int(200*math.log10(max(t.gain,1e-6)))); self.pan.setValue(int(t.pan*100))
-  self.mute.setChecked(t.mute); self.solo.setChecked(t.solo); self.phase.setChecked(t.phase); self.gate.setChecked(t.gate_on); self.comp.setChecked(t.comp_on)
+  t=self.t; self.name.setText(t.name); self.detail_title.setText(f"CHANNEL {self.i+1:02d}  /  {t.name}"); self.file.setText(os.path.basename(t.path) if t.path else "NO AUDIO"); self.file.setObjectName("trackLoaded" if t.path else "trackStatus"); self.file.style().unpolish(self.file); self.file.style().polish(self.file)
+  self.fader.setValue(int(200*math.log10(max(t.gain,1e-6)))); self.pan.setValue(int(t.pan*100)); self.mute.setChecked(t.mute); self.solo.setChecked(t.solo); self.phase.setChecked(t.phase)
+  self.hpf.setValue(int(t.hpf)); self.gate.setChecked(t.gate_on); self.gate_thr.setValue(t.gate_thr); self.gate_ratio.setValue(t.gate_ratio); self.comp.setChecked(t.comp_on); self.comp_thr.setValue(t.comp_thr); self.comp_ratio.setValue(t.comp_ratio); self.comp_attack.setValue(t.comp_attack); self.comp_release.setValue(t.comp_release)
   for s,x in zip(self.eqsp,t.eq): s.setValue(x)
   for s,x in zip(self.eqfreq,t.eq_freq): s.setValue(x)
   for i,s in enumerate(self.sendsp): s.setValue(int(t.sends[i]*100))
@@ -264,33 +268,46 @@ class Main(QMainWindow):
   v.addLayout(top)
   self.tabs=QComboBox(); self.tabs.addItems(["Channels 1–32","Bus Masters","FX Rack","DCA / Mute Groups"]); self.tabs.currentIndexChanged.connect(self.switch_view); v.addWidget(self.tabs)
   self.scroll=QScrollArea(); self.scroll.setWidgetResizable(True); v.addWidget(self.scroll,1)
-  self.channel_widget=QWidget(); grid=QGridLayout(self.channel_widget); self.strips=[]
+  self.channel_widget=QWidget(); grid=QGridLayout(self.channel_widget); grid.setSpacing(10); grid.setContentsMargins(10,10,10,10); self.strips=[]
   for i in range(32):
    s=Strip(self.e,i,self); self.strips.append(s); grid.addWidget(s,i//8,i%8)
   self.scroll.setWidget(self.channel_widget)
   self.bus_widget=self.make_buses(); self.fx_widget=self.make_fx(); self.group_widget=self.make_groups()
   self.setCentralWidget(root)
   self.setStyleSheet("""
-  QMainWindow, QWidget { background-color: #29292d; color: #e5e5e7; font-family: 'Segoe UI'; font-size: 10pt; }
-  QStatusBar { background: #202024; color: #aeb0b5; border-top: 1px solid #45454b; }
-  QLabel#brandLogo { color: #f0f0f0; background: #171719; border: 1px solid #59595f; border-radius: 5px; font-size: 25pt; font-weight: 900; padding: 1px 13px; }
-  QLabel#brandSub { color: #a8abb0; font-size: 9pt; font-weight: 700; padding-left: 8px; }
-  QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #55555b, stop:0.5 #3b3b40, stop:1 #29292d); border: 1px solid #707077; border-radius: 4px; padding: 7px 10px; color: #f0f0f2; font-weight: 600; }
-  QPushButton:hover { border: 1px solid #71b96a; background: #454b45; }
-  QPushButton:pressed { background: #1b1c1d; }
-  QPushButton#navButton { min-width: 68px; background: #343438; border: 1px solid #4e4e54; border-radius: 3px; color: #c8c9cc; font-size: 9pt; font-weight: 800; }
-  QPushButton#navButton:hover { background: #454a46; color: white; border-bottom: 3px solid #6fc65d; }
-  QGroupBox { background: #333338; border: 1px solid #606067; border-radius: 5px; margin-top: 14px; padding: 8px 5px 5px 5px; font-weight: 700; color: #e2e2e5; }
-  QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 5px; color: #d9dadc; }
-  QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { background: #202024; color: #f2f2f4; border: 1px solid #64646b; border-radius: 3px; padding: 4px; selection-background-color: #478b42; }
-  QSlider::groove:vertical { background: #171719; border: 1px solid #55555b; width: 8px; border-radius: 3px; }
-  QSlider::handle:vertical { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #a9aaad, stop:0.5 #f1f1f2, stop:1 #8b8c90); border: 1px solid #151516; height: 18px; margin: 0 -6px; border-radius: 3px; }
-  QSlider::groove:horizontal { background: #171719; border: 1px solid #55555b; height: 7px; border-radius: 3px; }
-  QSlider::handle:horizontal { background: #c9cacc; border: 1px solid #151516; width: 13px; margin: -5px 0; border-radius: 3px; }
-  QCheckBox { spacing: 5px; color: #dadadd; }
-  QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #77777d; background: #202024; border-radius: 2px; }
-  QCheckBox::indicator:checked { background: #62b84f; border: 1px solid #91e17b; }
-  QScrollArea { border: 1px solid #48484e; background: #252529; }
+  QMainWindow, QWidget { background-color: #1b1d21; color: #e8eaf0; font-family: 'Segoe UI'; font-size: 10pt; }
+  QStatusBar { background: #111317; color: #aeb5c0; border-top: 1px solid #343941; }
+  QLabel#brandLogo { color: #ffffff; background: #111317; border: 1px solid #4d5662; border-radius: 7px; font-size: 25pt; font-weight: 900; padding: 1px 13px; }
+  QLabel#brandSub { color: #9ca6b4; font-size: 9pt; font-weight: 700; padding-left: 8px; }
+  QLabel#channelNumber { background: #303640; color: #a8d8ff; border-radius: 4px; padding: 5px; font-weight: 900; letter-spacing: 1px; }
+  QLabel#trackStatus { color: #8e98a6; background: #20242a; border: 1px solid #343a43; border-radius: 4px; padding: 5px; font-size: 8pt; }
+  QLabel#trackLoaded { color: #a8f0a0; background: #1c3025; border: 1px solid #39724b; border-radius: 4px; padding: 5px; font-size: 8pt; }
+  QLabel#faderValue { color: #f0c66b; font-weight: 800; min-width: 42px; }
+  QLabel#detailTitle { color: #ffffff; font-size: 18pt; font-weight: 900; padding: 8px; }
+  QLabel#sectionHint { color: #9fa9b7; padding: 8px; }
+  QPushButton { background: #303640; border: 1px solid #4a5360; border-radius: 5px; padding: 7px 10px; color: #edf1f6; font-weight: 700; }
+  QPushButton:hover { border: 1px solid #7fc7ff; background: #394553; }
+  QPushButton:pressed { background: #171a1f; }
+  QPushButton#navButton { min-width: 68px; background: #262b32; border: 1px solid #3b424c; border-radius: 4px; color: #c8d0db; font-size: 9pt; font-weight: 800; }
+  QPushButton#navButton:hover { background: #36414c; color: white; border-bottom: 3px solid #5eb9ff; }
+  QPushButton#detailButton { background: #21445a; border: 1px solid #34759a; color: #dff4ff; }
+  QPushButton#muteButton:checked { background: #9c3038; border-color: #e95d67; color: white; }
+  QPushButton#soloButton:checked { background: #b58a25; border-color: #e5c15b; color: #171717; }
+  QGroupBox { background: #242930; border: 1px solid #414955; border-radius: 7px; margin-top: 12px; padding: 8px 5px 5px 5px; font-weight: 700; color: #e2e8f0; }
+  QGroupBox#channelStrip { background: #242930; border: 1px solid #3c4652; border-radius: 8px; }
+  QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 5px; color: #d9e1eb; }
+  QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { background: #171a1f; color: #f2f5f9; border: 1px solid #424b57; border-radius: 4px; padding: 5px; selection-background-color: #286c96; }
+  QSlider::groove:vertical { background: #101216; border: 1px solid #454d58; width: 10px; border-radius: 4px; }
+  QSlider::handle:vertical { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #9ba4af, stop:0.5 #f4f6f8, stop:1 #77818d); border: 1px solid #111317; height: 20px; margin: 0 -7px; border-radius: 3px; }
+  QSlider::groove:horizontal { background: #101216; border: 1px solid #454d58; height: 8px; border-radius: 4px; }
+  QSlider::handle:horizontal { background: #d4dce5; border: 1px solid #111317; width: 14px; margin: -5px 0; border-radius: 3px; }
+  QCheckBox { spacing: 5px; color: #dce3ec; }
+  QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #697483; background: #171a1f; border-radius: 3px; }
+  QCheckBox::indicator:checked { background: #58b978; border: 1px solid #8ce7a5; }
+  QScrollArea { border: 1px solid #363e49; border-radius: 7px; background: #1b1d21; }
+  QTabWidget::pane { border: 1px solid #424b57; border-radius: 6px; top: -1px; background: #20242a; }
+  QTabBar::tab { background: #2b3139; color: #b8c2cf; padding: 10px 24px; margin-right: 4px; border-top-left-radius: 5px; border-top-right-radius: 5px; font-weight: 800; }
+  QTabBar::tab:selected { background: #245574; color: #ffffff; border-bottom: 3px solid #63c1ff; }
   """)
   self.timer=QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(250)
   self.statusBar().showMessage("READY  •  Load multitrack files, mix, and save a project/scene.")
@@ -324,7 +341,11 @@ class Main(QMainWindow):
    grid.addWidget(box,i//4,i%4)
   return w
  def set_mute_group(self,i,x): self.e.mute_groups[i]=x
- def switch_view(self,i): self.scroll.setWidget([self.channel_widget,self.bus_widget,self.fx_widget,self.group_widget][i])
+ def open_channel_detail(self,i):
+  self.strips[i].refresh(); self.scroll.takeWidget(); self.scroll.setWidget(self.strips[i].detail_widget); self.strips[i].detail_tabs.setCurrentIndex(0); self.statusBar().showMessage(f"CHANNEL {i+1:02d}  •  Gate / Compressor / EQ / Sends")
+ def switch_view(self,i):
+  self.scroll.takeWidget(); self.scroll.setWidget([self.channel_widget,self.bus_widget,self.fx_widget,self.group_widget][i])
+  if i==0: self.statusBar().showMessage("CHANNEL OVERVIEW  •  Select OPEN CHANNEL DETAIL to edit Gate, Comp, EQ and Sends")
  def play(self):
   try: self.e.start(); self.statusBar().showMessage("Playback running")
   except Exception as ex: QMessageBox.critical(self,"Audio device error",str(ex))
